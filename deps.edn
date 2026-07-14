@@ -6,7 +6,7 @@
  ;; do. :local/root resolves inside the monorepo; a standalone fork
  ;; overrides with git coordinates.
  :deps {io.github.com-junkawasaki/langchain-clj
-        {:local/root "../../com-junkawasaki/langchain-clj"}}
+        {:local/root "../../kotoba-lang/langchain"}}
  :aliases
  {:test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
