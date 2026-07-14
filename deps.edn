@@ -1,0 +1,22 @@
+{:paths ["src"]
+ :version "0.1.0"
+ ;; langchain-clj provides langchain.db (the Datomic-API-compatible EAV
+ ;; store, swappable to a kotoba-server pod). The pure parts of this lib
+ ;; (enc/dec*/identity-schema) don't need it; the event-stream helpers
+ ;; do. :local/root resolves inside the monorepo; a standalone fork
+ ;; overrides with git coordinates.
+ :deps {io.github.com-junkawasaki/langchain-clj
+        {:local/root "../../com-junkawasaki/langchain-clj"}}
+ :aliases
+ {:test {:extra-paths ["test"]
+         :extra-deps {io.github.cognitect-labs/test-runner
+                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+         :main-opts ["-m" "cognitect.test-runner"]
+         :exec-fn cognitect.test-runner.api/test}
+  ;; PRIMARY gate: the portable suite under ClojureScript.
+  ;;   clojure -Sdeps '{:paths ["src" "test"]}' -M:cljs \
+  ;;     -m cljs.main --target node -m langchain-store.cljs-runner
+  :cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}}}
+  :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
+         :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"
+                     "--fail-level" "error"]}}}
