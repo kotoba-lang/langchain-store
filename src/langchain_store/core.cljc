@@ -64,3 +64,47 @@
   duplicate seq upserts rather than forking the log."
   [conn seq-attr edn-attr seq value]
   (d/transact! conn [{seq-attr seq edn-attr (enc value)}]))
+
+;; --------------------------- entity field-spec -----------------------
+;; The entity stores (application/party/... in ~190 actors) map a
+;; logical map to/from a langchain.db entity through hand-written
+;; `x->tx` / `pull->x` / `x-pull` triples. A field-spec drives all
+;; three from data (ADR-2607141600 increment 2):
+;;
+;;   {logical-key {:attr :ns/attr        ; the datom attribute
+;;                 :blob? bool           ; store as an EDN string blob
+;;                 :default any          ; blob decode fallback (nil -> default)
+;;                 :coerce fn}}          ; non-blob read transform (e.g. boolean)
+;;
+;; Semantics preserved from the hand-written stores: `map->tx` includes
+;; only present (some?) keys (cond-> semantics; a false boolean IS
+;; present); `pull->map` returns nil when the identity attr is absent,
+;; decodes blobs with the default, and applies :coerce on read.
+
+(defn pull-pattern
+  "The langchain.db pull pattern (attr vector) for a field spec."
+  [spec]
+  (mapv :attr (vals spec)))
+
+(defn map->tx
+  "Logical map -> langchain.db tx-map via `spec`. Only present (some?)
+  keys are included; :blob? fields are `enc`'d."
+  [spec m]
+  (reduce-kv (fn [tx lk {:keys [attr blob?]}]
+               (let [v (get m lk)]
+                 (if (some? v) (assoc tx attr (if blob? (enc v) v)) tx)))
+             {} spec))
+
+(defn pull->map
+  "langchain.db pulled entity -> logical map via `spec`. Returns nil
+  when the identity field's attr is absent. :blob? fields are `dec*`'d
+  (nil -> :default); other fields pass through, with :coerce applied on
+  read if given. `id-key` is the spec's identity logical key."
+  [spec id-key pulled]
+  (when (some? (get pulled (get-in spec [id-key :attr])))
+    (reduce-kv (fn [m lk {:keys [attr blob? default coerce]}]
+                 (assoc m lk (let [v (get pulled attr)]
+                               (cond blob? (or (dec* v) default)
+                                     coerce (coerce v)
+                                     :else v))))
+               {} spec)))
