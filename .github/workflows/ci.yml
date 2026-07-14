@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: JVM + CLJS + lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache m2 / gitlibs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2
+            ~/.gitlibs
+          key: ${{ runner.os }}-clj-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-clj-
+
+      # The :ci alias overrides langchain-clj's in-monorepo :local/root with
+      # its public git coordinate, so the same suite runs standalone here.
+      # The CLJS gate is PRIMARY (fleet runtime priority); JVM is compat.
+      - name: JVM tests (compat gate)
+        run: clojure -M:ci:test
+
+      - name: CLJS tests (primary gate — real ClojureScript, node target)
+        run: clojure -Sdeps '{:paths ["src" "test"]}' -M:ci:cljs -m cljs.main --target node -m langchain-store.cljs-runner
+
+      - name: Lint (clj-kondo, errors fail)
+        run: clojure -M:lint
