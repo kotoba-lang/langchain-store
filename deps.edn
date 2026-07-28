@@ -6,7 +6,8 @@
  ;; do. :local/root resolves inside the monorepo; a standalone fork
  ;; overrides with git coordinates.
  :deps {io.github.com-junkawasaki/langchain-clj
-        {:local/root "../../kotoba-lang/langchain"}}
+        {:git/url "https://github.com/kotoba-lang/langchain.git"
+         :git/sha "51e7b61ec3d55e917d5dc77dac145197cb3340df"}}
  :aliases
  {;; CI / standalone: the langchain-clj artifact's canonical source is the
   ;; PUBLIC kotoba-lang/langchain repo (the org successor its :local/root
