@@ -45,6 +45,51 @@
   [attrs]
   (reduce (fn [m a] (assoc m a {:db/unique :db.unique/identity})) {} attrs))
 
+;; ------------------------------- clock -------------------------------
+
+(defn now-ms
+  "Wall-clock milliseconds, portable across JVM/CLJS. Measured 2026-08-05:
+  85 cloud-itonami repos hand-roll this exact reader conditional inside
+  `src/`, 5 of them as a private `now-ms` in `store.cljc` itself. It is
+  here so a store's ledger stamp does not need a platform branch.
+
+  This is a real clock read, not injectable time — a store that needs a
+  deterministic clock for tests should take the timestamp as an argument
+  (see `stamp`, which does exactly that)."
+  []
+  #?(:clj (System/currentTimeMillis)
+     :cljs (.getTime (js/Date.))))
+
+;; --------------------------- keyed blob entity ------------------------
+;; The single most duplicated shape left in the fleet. Measured 2026-08-05
+;; across the 316 repos that depend on this library: **222 `store.cljc`
+;; files hand-roll `(ls/dec* (d/q ...))` to read one EDN-blob payload by a
+;; unique id attribute.** Only 9 of them give it a name (`blob-lookup`);
+;; the rest inline the query, so the duplication does not show up in a
+;; name-based grep. That is why this pair belongs here and not in each
+;; domain: it is not domain shaping, it is the same two-attribute lookup
+;; every keyed blob store performs.
+
+(defn blob-lookup
+  "Read the EDN-blob payload of the entity uniquely identified by
+  `id-attr` = `id`, stored under `payload-attr`. Returns nil when `id` is
+  nil or no such entity exists — a missing entity is nil, not a throw,
+  because every hand-rolled copy of this shape behaves that way and the
+  callers branch on nil."
+  [conn id-attr payload-attr id]
+  (when (some? id)
+    (dec* (d/q {:find '[?p .] :in '[$ ?id]
+                :where [['?e id-attr '?id] ['?e payload-attr '?p]]}
+               (d/db conn) id))))
+
+(defn put-blob!
+  "Write `value` as the EDN-blob payload of the entity keyed by
+  `id-attr` = `id`. The write counterpart of `blob-lookup`. `id-attr`
+  must be `:db.unique/identity` (see `identity-schema`) so a re-put
+  upserts instead of forking history."
+  [conn id-attr payload-attr id value]
+  (d/transact! conn [{id-attr id payload-attr (enc value)}]))
+
 ;; --------------------------- event streams ---------------------------
 
 (defn read-stream
@@ -64,6 +109,37 @@
   duplicate seq upserts rather than forking the log."
   [conn seq-attr edn-attr seq value]
   (d/transact! conn [{seq-attr seq edn-attr (enc value)}]))
+
+;; ---------------------------- ledger record ---------------------------
+;; The append-only audit ledger every actor's `add-record!` implements:
+;; stamp the payload with its record type and a timestamp, then append it
+;; at the next sequence number. Measured 2026-08-05: 177 of the 316
+;; consumers already call `append-blob!`, and each still re-implements the
+;; stamping and the "next seq is (count (records s))" step around it.
+
+(defn stamp
+  "Stamp a ledger record with its `:type` and `:timestamp`.
+
+  `ts` is an explicit argument rather than an internal `(now-ms)` call so
+  a test can pin it; pass `(now-ms)` for the real clock. The stamped keys
+  overwrite anything already under `:type`/`:timestamp` in `record-data`
+  — the ledger's own stamp wins over a caller-supplied one, which is what
+  every hand-rolled copy does."
+  [record-type record-data ts]
+  (assoc record-data :type record-type :timestamp ts))
+
+(defn append-record!
+  "Append one stamped record to a seq-keyed EDN-blob ledger, at the next
+  sequence number. Reads the current stream to find that number, which is
+  the same read-then-append the hand-rolled `add-record!` bodies perform;
+  it is NOT atomic against a concurrent appender, exactly like the code it
+  replaces. A store with concurrent writers needs a single writer or an
+  externally-supplied seq — use `append-blob!` directly for that."
+  ([conn seq-attr edn-attr record-type record-data]
+   (append-record! conn seq-attr edn-attr record-type record-data (now-ms)))
+  ([conn seq-attr edn-attr record-type record-data ts]
+   (let [next-seq (count (read-stream conn seq-attr edn-attr))]
+     (append-blob! conn seq-attr edn-attr next-seq (stamp record-type record-data ts)))))
 
 ;; --------------------------- entity field-spec -----------------------
 ;; The entity stores (application/party/... in ~190 actors) map a

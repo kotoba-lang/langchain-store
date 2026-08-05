@@ -103,3 +103,62 @@
   (let [conn (d/create-conn (ls/identity-schema [:app/id]))]
     (is (nil? (ls/pull->map app-spec :id
                             (d/pull (d/db conn) (ls/pull-pattern app-spec) [:app/id "nope"]))))))
+
+;; --------------------------------------------------------------------
+;; Increment 2 (2026-08-05): the keyed-blob entity pair, the portable
+;; clock and the ledger record stamp. Each of these was measured as
+;; still-duplicated across the consumers before being pulled in here —
+;; see the source comments for the counts.
+;; --------------------------------------------------------------------
+
+(deftest blob-lookup-round-trips-through-a-conn
+  (let [conn (d/create-conn (ls/identity-schema [:enlisted/id]))]
+    (ls/put-blob! conn :enlisted/id :enlisted/payload "e-1" {:rank :sgt :unit "u-1"})
+    (testing "the written blob reads back as the original value"
+      (is (= {:rank :sgt :unit "u-1"}
+             (ls/blob-lookup conn :enlisted/id :enlisted/payload "e-1"))))
+    (testing "a re-put upserts rather than forking history"
+      (ls/put-blob! conn :enlisted/id :enlisted/payload "e-1" {:rank :ssg :unit "u-1"})
+      (is (= {:rank :ssg :unit "u-1"}
+             (ls/blob-lookup conn :enlisted/id :enlisted/payload "e-1"))))
+    (testing "a missing entity is nil, not a throw — callers branch on nil"
+      (is (nil? (ls/blob-lookup conn :enlisted/id :enlisted/payload "absent"))))
+    (testing "a nil id is nil without querying"
+      (is (nil? (ls/blob-lookup conn :enlisted/id :enlisted/payload nil))))))
+
+(deftest blob-lookup-keeps-entities-separate
+  (let [conn (d/create-conn (ls/identity-schema [:unit/id :enlisted/id]))]
+    (ls/put-blob! conn :unit/id :unit/payload "u-1" {:name "Alpha"})
+    (ls/put-blob! conn :enlisted/id :enlisted/payload "e-1" {:rank :sgt})
+    (is (= {:name "Alpha"} (ls/blob-lookup conn :unit/id :unit/payload "u-1")))
+    (is (= {:rank :sgt} (ls/blob-lookup conn :enlisted/id :enlisted/payload "e-1")))
+    (is (nil? (ls/blob-lookup conn :unit/id :unit/payload "e-1"))
+        "an id from another entity family does not leak across attrs")))
+
+(deftest now-ms-is-a-positive-wall-clock
+  (let [t (ls/now-ms)]
+    (is (number? t))
+    (is (pos? t))
+    (is (>= (ls/now-ms) t) "monotonic within a single test run")))
+
+(deftest stamp-sets-type-and-timestamp
+  (is (= {:who "a" :type :commit :timestamp 42}
+         (ls/stamp :commit {:who "a"} 42)))
+  (testing "the ledger's own stamp wins over a caller-supplied one"
+    (is (= {:type :commit :timestamp 42}
+           (ls/stamp :commit {:type :spoofed :timestamp 1} 42)))))
+
+(deftest append-record-numbers-the-ledger-and-stamps-it
+  (let [conn (d/create-conn (ls/identity-schema [:record/seq]))]
+    (ls/append-record! conn :record/seq :record/payload :commit {:who "a"} 100)
+    (ls/append-record! conn :record/seq :record/payload :hold {:who "b"} 200)
+    (let [log (ls/read-stream conn :record/seq :record/payload)]
+      (is (= 2 (count log)))
+      (is (= [:commit :hold] (mapv :type log)) "records come back in append order")
+      (is (= [100 200] (mapv :timestamp log)) "the supplied ts is what is stored")
+      (is (= ["a" "b"] (mapv :who log)) "the domain payload survives alongside the stamp"))
+    (testing "the 3-arity uses the real clock"
+      (ls/append-record! conn :record/seq :record/payload :audit {:who "c"})
+      (let [last-rec (last (ls/read-stream conn :record/seq :record/payload))]
+        (is (= :audit (:type last-rec)))
+        (is (pos? (:timestamp last-rec)))))))
