@@ -3,22 +3,34 @@
  ;; langchain-clj provides langchain.db (the Datomic-API-compatible EAV
  ;; store, swappable to a kotoba-server pod). The pure parts of this lib
  ;; (enc/dec*/identity-schema) don't need it; the event-stream helpers
- ;; do. :local/root resolves inside the monorepo; a standalone fork
- ;; overrides with git coordinates.
+ ;; do.
+ ;;
+ ;; **This was a :local/root until the pin above replaced it; the sentence
+ ;; that used to be here still said so on 2026-08-13.** It is a git
+ ;; coordinate now, so a bare tree with no sibling checkout -- which is what
+ ;; the murakumo fleet ships to a node -- resolves `clojure -M:test` on its
+ ;; own. Measured on a `gh api .../tarball/main` extract: 13 tests /
+ ;; 40 assertions, 0 failures (ADR-2608136400).
  :deps {io.github.com-junkawasaki/langchain-clj
         {:git/url "https://github.com/kotoba-lang/langchain.git"
          :git/sha "51e7b61ec3d55e917d5dc77dac145197cb3340df"}}
  :aliases
- {;; CI / standalone: the langchain-clj artifact's canonical source is the
-  ;; PUBLIC kotoba-lang/langchain repo (the org successor its :local/root
-  ;; now points at). Override the in-monorepo :local/root with that git
-  ;; coordinate (pin == kotoba-lang/langchain main tip) so the suite
-  ;; resolves in GitHub Actions, which has no sibling checkout. Compose as
-  ;; -M:ci:test / -M:ci:cljs.
+ {;; :ci exists for a condition that no longer holds -- there is no
+  ;; :local/root left in `:deps` for it to override, so `-M:test` already
+  ;; resolves without a sibling checkout. It is kept only because
+  ;; .github/workflows/ci.yml invokes `-M:ci:test` and this workspace's
+  ;; token has no `workflow` scope to edit that file (ADR-2607300900).
+  ;;
+  ;; **Its sha is held equal to the base pin on purpose.** It used to name
+  ;; cda206ea, which by 2026-08-13 was 18 commits BEHIND the base pin
+  ;; 51e7b61e -- so following the instruction that used to be written here
+  ;; silently downgraded langchain-clj. A :replace-deps that disagrees with
+  ;; base is a downgrade wearing the word "CI". If the base pin moves,
+  ;; move this one with it or delete the alias.
   :ci {:replace-deps
        {io.github.com-junkawasaki/langchain-clj
         {:git/url "https://github.com/kotoba-lang/langchain"
-         :git/sha "cda206ea2cbe709e134cb7198f85f0eae1993c96"}}}
+         :git/sha "51e7b61ec3d55e917d5dc77dac145197cb3340df"}}}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
                       {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
