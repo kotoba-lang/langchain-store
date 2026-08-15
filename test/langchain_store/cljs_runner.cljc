@@ -1,13 +1,57 @@
 (ns langchain-store.cljs-runner
   "Run the portable suite under ClojureScript (cljs.main --target node):
-    clojure -Sdeps '{:paths [\"src\" \"test\"]}' -M:dev:cljs \\
-      -m cljs.main --target node -m langchain-store.cljs-runner"
+    clojure -Sdeps '{:paths [\"src\" \"test\"]}' -M:cljs \\
+      -m cljs.main --target node -m langchain-store.cljs-runner
+
+  CLJS is the primary gate (README), which means two things have to be
+  true and neither was:
+
+  **1. A red suite has to fail the process.** Setting
+  `(.-exitCode js/process)` from the `:end-run-tests` report does not
+  survive `cljs.main -m` — measured 2026-08-15: a suite reporting
+  `1 failures` still exited 0, so every caller of the documented command
+  read the primary gate as green no matter what the tests said. Throwing
+  does propagate (exit 1), so this reports first and then throws. Calling
+  `js/process.exit` instead was also measured: it hangs `cljs.main`
+  indefinitely rather than exiting.
+
+  **2. A suite that did not run has to be distinguishable from one that
+  passed.** `min-tests` is an evidence floor — fewer tests than we know
+  exist is a failure, not a pass, whether the cause is a namespace
+  missing from `-main` or one that failed to load. Both conditions come
+  out through the same throw, so neither can be silently green.
+
+  `-main` names each namespace literally because `run-tests` is a macro
+  under CLJS (it is a function on the JVM) — a seq of symbols cannot be
+  `apply`d to it, and trying compiles to a runtime TypeError."
   (:require [clojure.test :as t :refer [run-tests]]
-            [langchain-store.core-test]))
+            [langchain-store.core-test]
+            [langchain-store.contract-test]))
+
+(def min-tests
+  "Floor, not a target: raise it when you add tests, never lower it to go
+  green. 13 in core-test + 12 in contract-test as of 2026-08-15."
+  25)
 
 #?(:cljs
    (defmethod t/report [:cljs.test/default :end-run-tests] [m]
-     (when-not (t/successful? m)
-       (set! (.-exitCode js/process) 1))))
+     (let [ran (:test m)
+           reason (cond
+                    (< ran min-tests)
+                    (str "only " ran " tests ran; expected at least " min-tests
+                         " — a namespace is missing from -main or failed to"
+                         " load. That is not a pass.")
 
-(defn -main [] (run-tests 'langchain-store.core-test))
+                    (not (t/successful? m))
+                    (str (:fail m) " failures, " (:error m) " errors"))]
+       (when reason
+         (println "FAIL:" reason)
+         ;; Throw rather than set exitCode: measured 2026-08-15, exitCode
+         ;; does not survive `cljs.main -m` and the process exits 0.
+         (throw (ex-info (str "langchain-store CLJS suite: " reason)
+                         {:ran ran :min-tests min-tests
+                          :fail (:fail m) :error (:error m)}))))))
+
+(defn -main []
+  (run-tests 'langchain-store.core-test
+             'langchain-store.contract-test))
