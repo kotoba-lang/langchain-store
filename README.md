@@ -93,6 +93,33 @@ The field-spec `pull->map` / `map->tx` helper that earlier revisions of this
 README called "the documented next increment" has been implemented since
 increment 1 — the README was stale, not the code.
 
+## Sharp edges
+
+Three behaviors are surprising enough that the obvious reading of the code
+is wrong. Each has a test pinning it, so changing one costs a red test and
+an edit to this list rather than silence:
+
+- **A blob storing `false` or `nil` reads back as its `:default`.**
+  `pull->map` decodes with `(or (dec* v) default)`, so the rule is
+  "falsey → default", not the "nil → default" the docstring says. Fixing
+  it changes what every ledger already on disk reads back as, so it needs
+  its own measurement rather than a drive-by.
+- **`:coerce` never runs on a `:blob?` field.** `pull->map`'s `cond` tries
+  `blob?` first. A spec carrying both reads at the call site as though
+  both apply.
+- **`append-record!` can clobber through a gap.** Its next sequence is
+  `(count stream)`, so a ledger whose seqs are `0,1,3` appends *onto* seq
+  3 — and because the seq attr is `:db.unique/identity`, that upserts. The
+  older record is gone and the stream length does not change, so nothing
+  observable says a record was lost. This is the concrete shape of the
+  "not atomic" caveat above.
+
+`enc` is `pr-str`, so a map's text is insertion-ordered below nine entries
+and hash-ordered above it. **Do not use a blob's bytes as a content
+address** without sorting first (measured 2026-08-15: the JVM and CLJS
+agree on the order for a 12-key map, but neither is sorted and neither
+promises to keep agreeing).
+
 ## Test
 
 Both runtimes are gates; ClojureScript is the primary one.
@@ -103,6 +130,29 @@ clojure -Sdeps '{:paths ["src" "test"]}' -M:cljs \  # CLJS primary
   -m cljs.main --target node -m langchain-store.cljs-runner
 ```
 
-Last run 2026-08-05: 13 tests / 40 assertions, 0 failures on both.
+Last run 2026-08-15: **25 tests / 73 assertions**, 0 failures on both.
+
+`core-test` covers the happy paths. `contract-test` covers what would have
+stayed green if the implementation regressed — each of its tests was
+watched go red against a deliberately broken copy before it landed
+(`scripts/maturity-loop/mutations.edn` in the superproject, suite
+`langchain-store`: 12 mutations, all seen to bite). The gaps it closed
+were real: nothing looked at a stored datom, so blobs being *strings* —
+the reason this library exists — was never checked and `enc` could have
+been the identity function; and the ordering test appended `1,2,3` in
+order, which an unsorted read also satisfies.
+
+Two things about the CLJS runner, both measured 2026-08-15:
+
+- **A red CLJS suite used to exit 0.** Setting `(.-exitCode js/process)`
+  from `:end-run-tests` does not survive `cljs.main -m`, so the primary
+  gate reported success no matter what the tests said. It throws now,
+  which does propagate. (`js/process.exit` was tried too — it hangs
+  `cljs.main` rather than exiting.)
+- **The runner has an evidence floor.** A namespace missing from `-main`,
+  or one that fails to load, means fewer tests run — which otherwise
+  prints `0 failures` and passes. Fewer tests than `min-tests` is a
+  failure now. Raise the floor when you add tests; never lower it to go
+  green.
 
 AGPL-3.0-or-later.
