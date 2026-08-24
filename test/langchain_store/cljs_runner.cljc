@@ -1,7 +1,10 @@
 (ns langchain-store.cljs-runner
   "Run the portable suite under ClojureScript (cljs.main --target node):
     clojure -Sdeps '{:paths [\"src\" \"test\"]}' -M:cljs \\
-      -m cljs.main --target node -m langchain-store.cljs-runner
+      -m cljs.main --target node --output-dir target/node-out \\
+      --output-to target/tests.cjs -c langchain-store.cljs-runner
+    echo '{\"type\":\"commonjs\"}' > target/node-out/package.json
+    node target/tests.cjs
 
   CLJS is the primary gate (README), which means two things have to be
   true and neither was:
@@ -55,3 +58,9 @@
 (defn -main []
   (run-tests 'langchain-store.core-test
              'langchain-store.contract-test))
+
+;; The compiled node bundle runs `cljs.nodejscli`, which calls whatever
+;; `*main-cli-fn*` names. Without this the bundle loads every namespace,
+;; runs no test, and exits 0 -- measured 2026-08-25, and indistinguishable
+;; from a clean run in both the output and the exit code.
+#?(:cljs (set! *main-cli-fn* -main))
