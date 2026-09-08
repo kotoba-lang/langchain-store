@@ -28,13 +28,15 @@
   under CLJS (it is a function on the JVM) — a seq of symbols cannot be
   `apply`d to it, and trying compiles to a runtime TypeError."
   (:require [clojure.test :as t :refer [run-tests]]
+            [langchain-store.catalog-test]
             [langchain-store.core-test]
             [langchain-store.contract-test]))
 
 (def min-tests
   "Floor, not a target: raise it when you add tests, never lower it to go
-  green. 13 in core-test + 12 in contract-test as of 2026-08-15."
-  25)
+  green. 13 in core-test + 12 in contract-test + 4 in catalog-test as of
+  2026-09-08."
+  29)
 
 #?(:cljs
    (defmethod t/report [:cljs.test/default :end-run-tests] [m]
@@ -56,7 +58,8 @@
                           :fail (:fail m) :error (:error m)}))))))
 
 (defn -main []
-  (run-tests 'langchain-store.core-test
+  (run-tests 'langchain-store.catalog-test
+             'langchain-store.core-test
              'langchain-store.contract-test))
 
 ;; The compiled node bundle runs `cljs.nodejscli`, which calls whatever
