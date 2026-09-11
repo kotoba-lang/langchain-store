@@ -68,5 +68,5 @@ Add, with tests on both runtimes:
 
 ## Verification
 
-`clojure -M:test` (JVM) and the ClojureScript runner (primary gate), both
+`kbb -M:test` (JVM) and the ClojureScript runner (primary gate), both
 run 2026-08-05: 13 tests / 40 assertions, 0 failures.

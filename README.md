@@ -125,8 +125,8 @@ promises to keep agreeing).
 Both runtimes are gates; ClojureScript is the primary one.
 
 ```sh
-clojure -M:test                                     # JVM compat
-clojure -Sdeps '{:paths ["src" "test"]}' -M:cljs \  # CLJS primary
+kbb -M:test                                     # JVM compat
+kbb -Sdeps '{:paths ["src" "test"]}' -M:cljs \  # CLJS primary
   -m cljs.main --target node -m langchain-store.cljs-runner
 ```
 
