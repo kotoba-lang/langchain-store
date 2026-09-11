@@ -14,7 +14,7 @@
   checked live is everything the repo itself can answer.
 
   Like the other portable test namespaces it runs on both runtimes and
-  reads relative to the repo root, where `clojure -M:test` and the
+  reads relative to the repo root, where `kbb -M:test` and the
   ClojureScript runner (`cljs.main --target node`) are both invoked."
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]

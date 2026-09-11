@@ -8,7 +8,7 @@
  ;; **This was a :local/root until the pin above replaced it; the sentence
  ;; that used to be here still said so on 2026-08-13.** It is a git
  ;; coordinate now, so a bare tree with no sibling checkout -- which is what
- ;; the murakumo fleet ships to a node -- resolves `clojure -M:test` on its
+ ;; the murakumo fleet ships to a node -- resolves `kbb -M:test` on its
  ;; own. Measured on a `gh api .../tarball/main` extract: 13 tests /
  ;; 40 assertions, 0 failures (ADR-2608136400).
  :deps {io.github.kotoba-lang/langchain
@@ -35,7 +35,7 @@
          :main-opts ["-m" "cognitect.test-runner"]
          :exec-fn cognitect.test-runner.api/test}
   ;; PRIMARY gate: the portable suite under ClojureScript.
-  ;;   clojure -Sdeps '{:paths ["src" "test"]}' -M:cljs \
+  ;;   kbb -Sdeps '{:paths ["src" "test"]}' -M:cljs \
   ;;     -m cljs.main --target node -m langchain-store.cljs-runner
   :cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}}}
   :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
