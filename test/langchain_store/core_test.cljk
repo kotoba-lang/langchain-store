@@ -3,7 +3,7 @@
   round-trips (incl. nested/compound values), the identity schema is
   shaped right, and the seq-keyed event stream reads back in order
   (upsert on duplicate seq). Portable — JVM + CLJS."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [langchain.db :as d]
             [langchain-store.core :as ls]))
 

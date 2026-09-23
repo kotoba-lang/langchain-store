@@ -31,7 +31,7 @@
 
   Portable `.cljc` — both runtimes are gates and this namespace must be
   in `cljs-runner`'s `run-tests` list or CLJS silently never runs it."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [langchain.db :as d]
             [langchain-store.core :as ls]))
 

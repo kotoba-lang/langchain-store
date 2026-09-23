@@ -16,7 +16,7 @@
   Like the other portable test namespaces it runs on both runtimes and
   reads relative to the repo root, where `kbb -M:test` and the
   ClojureScript runner (`cljs.main --target node`) are both invoked."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotoba.lang.text :as str]
             #?(:clj [clojure.edn :as edn]
                :cljs [cljs.reader :as edn])
