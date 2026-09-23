@@ -11,7 +11,12 @@
  ;; the murakumo fleet ships to a node -- resolves `kbb -M:test` on its
  ;; own. Measured on a `gh api .../tarball/main` extract: 13 tests /
  ;; 40 assertions, 0 failures (ADR-2608136400).
- :deps {io.github.kotoba-lang/langchain
+ :deps {
+        ;; kotoba.lang.text, not clojure.string. Pinned as an explicit floor:
+        ;; tools.deps takes the NEWEST sha it is shown, so without a floor here
+        ;; this repo silently rides whatever a sibling happens to name.
+        io.github.kotoba-lang/text {:git/sha "3dcb2ab087933dc7b703b340dac9afce62cb30ff"}
+       io.github.kotoba-lang/langchain
         {:git/sha "51e7b61ec3d55e917d5dc77dac145197cb3340df"}}
  :aliases
  {;; :ci exists for a condition that no longer holds -- there is no
