@@ -27,7 +27,7 @@
   `-main` names each namespace literally because `run-tests` is a macro
   under CLJS (it is a function on the JVM) — a seq of symbols cannot be
   `apply`d to it, and trying compiles to a runtime TypeError."
-  (:require [clojure.test :as t :refer [run-tests]]
+  (:require [kotoba.test :as t :refer [run-tests]]
             [langchain-store.catalog-test]
             [langchain-store.core-test]
             [langchain-store.contract-test]))
