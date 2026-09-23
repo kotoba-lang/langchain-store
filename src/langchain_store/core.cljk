@@ -18,7 +18,7 @@
   (`enc`/`dec*`/`identity-schema`) have zero deps, the event helpers
   use `langchain.db` (itself the Datomic-API seam, swappable to a
   kotoba-server pod)."
-  (:require #?(:clj [clojure.edn :as edn]
+  (:require #?(:clj [kotoba.lang.edn :as edn]
                :cljs [cljs.reader :as edn])
             [langchain.db :as d]))
 
